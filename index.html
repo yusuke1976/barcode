@@ -20,6 +20,11 @@
             left: 0;
             top: 0;
         }
+        #result {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -40,37 +45,59 @@
                 },
             },
             decoder: {
-                readers: ["ean_reader", "ean_8_reader", "isbn_reader"]
-            }
+                readers: ["ean_reader", "ean_8_reader"],
+                debug: {
+                    drawBoundingBox: true,
+                    showFrequency: true,
+                    drawScanline: true,
+                    showPattern: true
+                }
+            },
+            locator: {
+                patchSize: "medium",
+                halfSample: true
+            },
+            numOfWorkers: 4,
+            frequency: 10,
+            locate: true,
         }, function(err) {
             if (err) {
                 console.log(err);
                 return
             }
-            console.log("Initialization finished. Ready to start");
+            console.log("初期化完了。スキャンを開始します。");
             Quagga.start();
         });
 
         Quagga.onDetected(function(result) {
             var code = result.codeResult.code;
-            document.getElementById('result').textContent = "Detected barcode: " + code;
-            
-            // ISBNが検出されたら、Google Books APIを使用して本の情報を取得
             if (code && (code.length === 10 || code.length === 13)) {
-                fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${code}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.items && data.items.length > 0) {
-                            var book = data.items[0].volumeInfo;
-                            var bookInfoUrl = `https://books.google.com/books?id=${data.items[0].id}`;
-                            window.location.href = bookInfoUrl;
-                        } else {
-                            console.log('Book not found');
-                        }
-                    })
-                    .catch(error => console.error('Error:', error));
+                document.getElementById('result').textContent = "ISBN: " + code + " を検出しました。情報を取得中...";
+                Quagga.stop();
+                fetchBookInfo(code);
             }
         });
+
+        function fetchBookInfo(isbn) {
+            fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.items && data.items.length > 0) {
+                        var book = data.items[0].volumeInfo;
+                        var bookInfoUrl = `https://books.google.com/books?id=${data.items[0].id}`;
+                        document.getElementById('result').textContent = `"${book.title}" が見つかりました。新しいタブで開きます...`;
+                        setTimeout(() => {
+                            window.open(bookInfoUrl, '_blank');
+                        }, 2000);
+                    } else {
+                        document.getElementById('result').textContent = '本の情報が見つかりませんでした。';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('result').textContent = '情報の取得中にエラーが発生しました。';
+                });
+        }
     </script>
 </body>
 </html>
